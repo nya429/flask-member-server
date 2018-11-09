@@ -234,6 +234,64 @@ def address_city_county_list():
     mimetype='application/json')
     return response
 
+
+@app.route('/member/list/report', methods=['POST'])
+def memebr_list_report():
+    request_data = request.get_json()
+    ico_ccaids = request_data['ico']
+    sco_ccaids = request_data['sco']
+    ico_query = "','".join(ico_ccaids) if len(ico_ccaids) > 0 else None
+    sco_query = "','".join(sco_ccaids) if len(sco_ccaids) > 0 else None
+
+    ico_query =  """select nn.NAME_ID as NAME_ID, nn.TEXT2 as CCA_ID, nn.NAME_FIRST as NAME_FIRST, nn.NAME_LAST as NAME_LAST,nn.BIRTH_DATE as BIRTH_DATE, nn.SOC_SEC as SSN,
+                    ms.product as PRODUCT, ms.START_DATE as P_START_DATE, ms.END_DATE as P_END_DATE, ms.ENR_STAT,
+                    rc.rc as RC, rc.RCStart as RCStart, rc.RCEnd as RCEnd,
+                    na.ADDRESS1, na.ADDRESS2, na.ADDRESS3, na.CITY, na.STATE, na.ZIP, na.COUNTRY, na.COUNTY, na.START_DATE, na.END_DATE
+                    from MPSnapshotProd.dbo.NAME as nn
+                    left join MPSnapshotProd.dbo.NAME_ADDRESS as na on na.NAME_ID = nn.NAME_ID and na.ADDRESS_TYPE = 'PERMANENT' and GETDATE() >= na.START_DATE and (GETDATE() <= na.START_DATE or na.END_DATE is null)
+                    left join ReportSupport.dbo.Member_Spans as ms on ms.NAME_ID = nn.NAME_ID and GETDATE() >= ms.START_DATE and (GETDATE() <= ms.END_DATE or ms.END_DATE is null)
+                   	left join ReportSupport.dbo.vwICORatingCategories_MdsAssist as rc on rc.MPMemberId = nn.NAME_ID and GETDATE() >= rc.RCStart and (GETDATE() <= rc.RCEnd or rc.RCEnd is null) 
+                   	where nn.TEXT2 in ('{}')""".format(ico_query) if ico_query else ''
+
+    sco_query = """ select nn.NAME_ID as NAME_ID, nn.TEXT2 as CCA_ID, nn.NAME_FIRST as NAME_FIRST, nn.NAME_LAST as NAME_LAST,nn.BIRTH_DATE as BIRTH_DATE, nn.SOC_SEC as SSN,
+                    ms.product as PRODUCT, ms.START_DATE as P_START_DATE, ms.END_DATE as P_END_DATE, ms.ENR_STAT,
+                    rc.rc as RC, rc.RCStart as RCStart, rc.RCEnd as RCEnd,
+                    na.ADDRESS1, na.ADDRESS2, na.ADDRESS3, na.CITY, na.STATE, na.ZIP, na.COUNTRY, na.COUNTY, na.START_DATE, na.END_DATE
+                    from MPSnapshotProd.dbo.NAME as nn
+                    left join MPSnapshotProd.dbo.NAME_ADDRESS as na on na.NAME_ID = nn.NAME_ID and na.ADDRESS_TYPE = 'PERMANENT' and GETDATE() >= na.START_DATE and (GETDATE() <= na.START_DATE or na.END_DATE is null)
+                    left join ReportSupport.dbo.Member_Spans as ms on ms.NAME_ID = nn.NAME_ID and GETDATE() >= ms.START_DATE and (GETDATE() <= ms.END_DATE or ms.END_DATE is null)
+                   	left join ReportSupport.dbo.vwICORatingCategories_MdsAssist as rc on rc.MPMemberId = nn.NAME_ID and GETDATE() >= rc.RCStart and (GETDATE() <= rc.RCEnd or rc.RCEnd is null) 
+                   	where nn.TEXT2 in ('{}')""".format(sco_query) if sco_query else ''
+                       
+    cursor = cnxn.cursor()
+    query_list = ico_query + sco_query
+
+    result = cursor.execute(query_list)
+    members = jsonify_members(result)
+
+    if ico_query and sco_query:
+        result.nextset() 
+        members = members + jsonify_members(result)
+
+    print(' query_list ######################################################')
+    print(query_list)
+    print(' query_list ######################################################')
+    print("    ")
+    print("    ")
+    print(' members ######################################################')
+    print(members)
+    print(' members ######################################################')
+    respond_data = {'members': members}
+    # respond_data = {'members': [row for row in result.fetchall()]}
+    # result.nextset()
+    # respond_data['members'].append(list(row for row in result.fetchall()))
+    cursor.close()
+    response = Flask.response_class(
+    response=json.dumps(respond_data),
+    status=200,
+    mimetype='application/json')
+    return response    
+
 def memebr_filter_query(request_data):
     city = request_data.get("city", None)
     county = request_data.get("county", None)
@@ -271,7 +329,24 @@ def memebr_filter_query(request_data):
     filter_query = filter_query if disenrolled else filter_query + """AND  GETDATE() >= ms.START_DATE and (GETDATE() <= ms.START_DATE or ms.END_DATE is null) """
     return filter_query, filter_params
 
+def jsonify_members(result):
+    members = list(map(lambda row: {
+    'CCA_ID': row.CCA_ID,
+    'Last Name': row.NAME_LAST, 
+    'First Name': row.NAME_FIRST, 
+    'Address': "{}{}, {}, {} {}, {}".format(row.ADDRESS1, (' ' + row.ADDRESS2) if row.ADDRESS2 else '', row.CITY, row.STATE, row.ZIP, row.COUNTY), 
+    'Date of Birth': row.BIRTH_DATE.strftime('%Y-%m-%d') if row.BIRTH_DATE else None,
+    'SSN': row.SSN,
+    'Enrollment Status': row.ENR_STAT,
+    'Rating Category': row.RC,
+    'rcStart': row.RCStart.strftime('%Y-%m-%d') if row.RCStart else None,
+    'rcEnd': row.RCEnd.strftime('%Y-%m-%d') if row.RCEnd else None,
+    'Program': row.PRODUCT, 
+    'Program Start': row.P_START_DATE.strftime('%Y-%m-%d') if row.P_START_DATE else None, 
+    'Program End': row.P_END_DATE.strftime('%Y-%m-%d') if row.P_END_DATE else 'present',
+    } , result.fetchall()))
+    return members
+
 if __name__ == "__main__":
     app.run(debug=True)
-
 
