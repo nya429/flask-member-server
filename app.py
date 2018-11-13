@@ -1,14 +1,26 @@
 from flask import Flask, json, request
+from flask_restful import Api
 from sim_data import sim_members
 from flask_cors import CORS
-from member import Member
-from db_test import cnxn
-import re 
-from member_flat_name import read_flat_member
+from flask_jwt import JWT
+
 from dateutil import parser as date_parser
+import re 
+
+from security import authenticate, identity
+from member import Member
+from member_flat_name import read_flat_member
+from db_test import cnxn
+
+from user import UserRegister
 
 app = Flask(__name__)
+app.config['PROPAGATE_EXCEPTIONS'] = True
+app.secret_key = 'cca'
+api = Api(app)
 CORS(app)
+
+jwt = JWT(app, authenticate, identity)
 
 members = sim_members
 member_objs = [Member(member) for member in sim_members]
@@ -346,6 +358,10 @@ def jsonify_members(result):
     'Program End': row.P_END_DATE.strftime('%Y-%m-%d') if row.P_END_DATE else 'present',
     } , result.fetchall()))
     return members
+
+
+
+api.add_resource(UserRegister, '/register')
 
 if __name__ == "__main__":
     app.run(debug=True)

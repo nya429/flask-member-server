@@ -1,1 +1,4 @@
-cca_ids = ['123','123','123']
+arr=("abc"
+     "def")
+
+print(arr)

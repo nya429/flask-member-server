@@ -43,7 +43,7 @@ def write_member():
 def read_flat_member():
     with open('myfile.dat', 'rb') as file: 
         flat_member_names = pickle.load(file)
-        print('Total ' ,len(flat_member_names), 'in cachse', list(flat_member_names)[0])
+        print(' * Total ' ,len(flat_member_names), 'in caches', list(flat_member_names)[0])
         return flat_member_names
 
 # write_member()
